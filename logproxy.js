@@ -14,11 +14,11 @@
         fs = require('fs'),
         StringDecoder = require('string_decoder').StringDecoder,
         Buffer = require('buffer').Buffer,
-        Iconv  = require('iconv').Iconv,//https://github.com/bnoordhuis/node-iconv
+        Iconv  = require('iconv-lite'),//https://github.com/bnoordhuis/node-iconv,https://github.com/ashtuchkin/iconv-lite
         chardet = require('chardet'),//https://github.com/unbug/node-chardet
         colors = require('colors'),
         util = require('util');
-    
+        
     //prevent node.js from crashing
     process.on('uncaughtException', function (err) {
         console.log("process uncaughtException error");
@@ -55,19 +55,31 @@
       }
       return '0.0.0.0';
     }    
+    function decodeResponseBody(headers,body){
+        var cs
+        cs = headers['content-type'].match(/.*charset=(.*)[;]?/i);
+        cs = cs && cs[1];
+        if(cs){
+            console.log(('Body charset is '+cs ).magenta.bold);
+            if(Iconv.encodingExists(cs)){
+                return Iconv.decode(new Buffer(body),cs);
+            }
+        }
+        return autoDecodeCharset(body);
+    }
     function autoDecodeCharset(data){
         if(data){
             var buffer = new Buffer(data),
-                charset = chardet.detect(buffer),
-                toCharset,toUTF8;
-            console.log(('Charset is '+charset ).magenta.bold);
+                charset = chardet.detect(buffer);
+            console.log(('Data charset is '+charset ).magenta.bold);
             try {
-                return buffer.toString(charset);
+                data = buffer.toString(charset);
               } catch (e) {
-                toUTF8 = new Iconv(charset, "UTF-8//TRANSLIT//IGNORE");
-                buffer = toUTF8.convert(buffer);
-                return buffer.toString();
+                if(Iconv.encodingExists(charset)){
+                    data = Iconv.decode(buffer,charset);
+                }
               }
+            return data;
         }
     }
     /**
@@ -82,7 +94,7 @@
             util.log(('--'+requestCount+'--------------------------- LOG REQUEST STARTED ---------------------------'+requestCount+'--').yellow);
             
             console.log(('METHOD '+logs.reqMethod+': ').magenta.bold+logs.reqUrl.red);
-            if( (/image/ig).test(logs.resHeaders['content-type']) ){
+            if( (/image|audio|video|upload/ig).test(logs.resHeaders['content-type']) ){
                 printLog('CONTENT TYPE: '.magenta.bold+logs.resHeaders['content-type'].red); 
             }else{
                 printLog('REQUEST HEADERS: '.magenta.bold);
@@ -101,6 +113,9 @@
             requestCount++;
         }
     })();
+    /**
+      * @param {Object} host
+     */
     function isFilterHost(host){
         if(excuteArgvs.filterHosts.length<1 || host.length<1){
             return true;
@@ -120,20 +135,25 @@
         }
         return false;
     }
+    /**
+     * 
+     * @param {Object} request
+     * @param {Object} response
+     */
     function onWebServerCreate(request, response){
         util.log(('-----------------------------REQUEST STARTING HOST '+request.headers['host']+' -----------------------------').yellow);
         
-        var clientOption,clientRequest,clientLog = {},sHeards = {};
+        var clientOption,clientRequest,clientLog = {},sHeaders = {};
         for(var key in request.headers){
-            sHeards[key] = request.headers[key];
+            sHeaders[key] = request.headers[key];
         }        
-        sHeards['accept-encoding'] = '';
+        sHeaders['accept-encoding'] = '';
         clientOption = {
             host: request.headers['host'],
             post: 80,
             method: request.method,
             path: request.url,
-            headers: sHeards
+            headers: sHeaders
         }
         clientRequest = new http.ClientRequest(clientOption);
         
@@ -174,5 +194,9 @@
     webServer = http.createServer(onWebServerCreate)
     webServer.listen(excuteArgvs.port);
     
-    util.log('----------- PROXY IS READY ON ' +(getIPAddress()).red.bold+' PORT '+(excuteArgvs.port+' -----------').red.bold);
+    util.log('==================================================================='.red.bold);
+    util.log('==================================================================='.red.bold);
+    util.log('             PROXY IS READY ON ' +(getIPAddress()).red.bold+' PORT '+(excuteArgvs.port+'              ').red.bold);
+    util.log('==================================================================='.red.bold);
+    util.log('==================================================================='.red.bold);
 })();
