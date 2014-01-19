@@ -7,10 +7,12 @@
  * node logproxy 
  * 2.listen on port 8088 and only log hosts -- 'c.163.com' and every host matchs '126.com'
  * node logproxy 8088 c.163.com,*126.com
+ * 
+ * @auth http://www.iunbug.com
  */
 ;(function(){
     var http = require('http'),
-        https = require('https');
+        net = require('net'),
         fs = require('fs'),
         StringDecoder = require('string_decoder').StringDecoder,
         Buffer = require('buffer').Buffer,
@@ -32,7 +34,7 @@
             port: p,
             filterHosts: f
         }
-    })();
+    })();//end excuteArgvs
     
     function printLog(logs){
         logs = logs || 'NULL';
@@ -42,7 +44,7 @@
             // console.log(util.inspect(logs, { showHidden: false, depth: null,colors: true}));
             console.dir(logs);
         }
-    }
+    }//end printLog
     function getIPAddress() {
       var interfaces = require('os').networkInterfaces();
       for (var devName in interfaces) {
@@ -54,7 +56,22 @@
         }
       }
       return '0.0.0.0';
-    }    
+    }//end getIPAddress
+     
+    var formatHost = (function() {
+        var reg = /^([^:]+)(:([0-9]+))?$/i;
+        return function(host){
+            var tmp = host.match(reg);
+            return tmp?{host: tmp[1],port: tmp[3]}:{host: host}
+        }
+    })();//end formatHost
+    var formatPath = (function() {
+        var reg = /^[a-zA-Z]+:\/\/[^\/]+(\/.*)?$/i;
+        return function(url){
+            var tmp = url.match(reg);
+            return tmp?(tmp[1].length>0&&tmp[1]):'/';
+        }
+    })();//end formatHost
     function decodeResponseBody(headers,body){
         var cs
         cs = headers['content-type'].match(/.*charset=(.*)[;]?/i);
@@ -66,7 +83,7 @@
             }
         }
         return autoDecodeCharset(body);
-    }
+    }//end decodeResponseBody
     function autoDecodeCharset(data){
         if(data){
             var buffer = new Buffer(data),
@@ -81,7 +98,7 @@
               }
             return data;
         }
-    }
+    }//end autoDecodeCharset
     /**
      * 
      * @param {Object} log {reqMethod,reqUrl,reqHeaders,reqData,resCode,resHeaders,resBody}
@@ -93,29 +110,29 @@
             
             util.log(('--'+requestCount+'--------------------------- LOG REQUEST STARTED ---------------------------'+requestCount+'--').yellow);
             
+            console.log('HTTP VERSION: '.magenta.bold+logs.httpVersion.red);
             console.log(('METHOD '+logs.reqMethod+': ').magenta.bold+logs.reqUrl.red);
-            if( (/image|audio|video|upload/ig).test(logs.resHeaders['content-type']) ){
+            if( logs.resHeaders && (/image|audio|video|upload/ig).test(logs.resHeaders['content-type']) ){
                 printLog('CONTENT TYPE: '.magenta.bold+logs.resHeaders['content-type'].red); 
             }else{
                 printLog('REQUEST HEADERS: '.magenta.bold);
                 printLog(logs.reqHeaders);
-                printLog('REQUEST DATA: '.magenta.bold); 
-                printLog(autoDecodeCharset(logs.reqData));
-                printLog('RESPONSE STATUS CODE: '.magenta.bold+(logs.resCode+'').red);
-                printLog('RESPONSE HEADERS: '.magenta.bold);
-                printLog(logs.resHeaders);
-                printLog('RESPONSE BODY: '.magenta.bold); 
-                printLog( autoDecodeCharset(logs.resBody) );
+                if( !(/connect/ig).test(logs.reqMethod) ){
+                    printLog('REQUEST DATA: '.magenta.bold); 
+                    printLog(autoDecodeCharset(logs.reqData));
+                    printLog('RESPONSE STATUS CODE: '.magenta.bold+(logs.resCode+'').red);
+                    printLog('RESPONSE HEADERS: '.magenta.bold);
+                    printLog(logs.resHeaders);
+                    printLog('RESPONSE BODY: '.magenta.bold); 
+                    printLog( autoDecodeCharset(logs.resBody) );
+                }
             }
 
             util.log(('--'+requestCount+'----------------------------- LOG REQUEST END ---------------------------'+requestCount+'--').yellow);
             
             requestCount++;
         }
-    })();
-    /**
-      * @param {Object} host
-     */
+    })();//end printClientLog
     function isFilterHost(host){
         if(excuteArgvs.filterHosts.length<1 || host.length<1){
             return true;
@@ -134,7 +151,7 @@
             }
         }
         return false;
-    }
+    }//end isFilterHost
     /**
      * 
      * @param {Object} request
@@ -143,21 +160,26 @@
     function onWebServerCreate(request, response){
         util.log(('-----------------------------REQUEST STARTING HOST '+request.headers['host']+' -----------------------------').yellow);
         
-        var clientOption,clientRequest,clientLog = {},sHeaders = {};
+        var clientOption,clientRequest,
+            clientLog = {},sHeaders = {},
+            host = formatHost(request.headers['host']);
         for(var key in request.headers){
             sHeaders[key] = request.headers[key];
         }        
         sHeaders['accept-encoding'] = '';
         clientOption = {
-            host: request.headers['host'],
-            post: 80,
+            host: host.host,
+            post: host.port || 80,
             method: request.method,
-            path: request.url,
-            headers: sHeaders
+            path: formatPath(request.url),
+            headers: sHeaders,
+            agent: request.agent,
+            auth: request.auth
         }
         clientRequest = new http.ClientRequest(clientOption);
         
         clientRequest.addListener('response', function (clientResponse) {
+            response.writeHead(clientResponse.statusCode, clientResponse.headers);
             var body = [];
             clientResponse.addListener('data', function(chunk) {
                 
@@ -165,6 +187,7 @@
                 response.write(chunk,'binary');
             });
             clientResponse.addListener('end', function() {
+                clientLog.httpVersion = request.httpVersion;
                 clientLog.reqMethod = request.method;
                 clientLog.reqUrl = request.url;
                 clientLog.reqHeaders = request.headers;        
@@ -176,23 +199,76 @@
                 
                 printClientLog(clientLog);
             });
-            response.writeHead(clientResponse.statusCode, clientResponse.headers);
-         });
+         });//end response
         request.addListener('data', function(chunk) {
             clientLog.reqData = chunk;
             clientRequest.write(chunk,'binary');
-        });
+        });//end data
         request.addListener('end', function() {
             clientRequest.end();
-        });    
-        request.on('error', function (err) {
-            printLog('request error');
+        });//end end 
+        request.on('error', function (err){
             printLog(err);
-        });        
-    }
+        });//end error    
+    }//end onWebServerCreate
+    
+    function onWebServerConnect(request, socket, head){
+        util.log(('-----------------------------REQUEST STARTING HOST '+request.headers['host']+' -----------------------------').yellow);
+        
+        var clientSocket,
+            host = formatHost(request['url']),
+            clientLog = {
+                resBody: []
+            };
+        request.headers['accept-encoding'] = '';
+        clientSocket = new net.Socket();
+        clientSocket.connect(parseInt(host.port||443),host.host);
+        
+        clientSocket.on('connect',function (){
+            clientSocket.write(head);
+            // tell the caller the connection was successfully established
+            socket.write( "HTTP/" + request.httpVersion + " 200 Connection established\r\n\r\n" );
+        });//end connect
+        clientSocket.on('data',function(chunk){
+            clientLog.resBody.push(chunk);
+            socket.write(chunk);
+        });//end data
+ 
+        clientSocket.on('end',function (){
+            clientLog.httpVersion = request.httpVersion;
+            clientLog.reqMethod = request.method;
+            clientLog.reqUrl = request.url;
+            clientLog.reqHeaders = request.headers;
+            clientLog.resBody = clientLog.resBody.join('');
+            
+            socket.end();
+            
+            printClientLog(clientLog);
+        });//end end
+ 
+        socket.on('data',function (chunk){
+            clientLog.reqData = chunk;
+            clientSocket.write(chunk);
+        });//end data
+ 
+        socket.on('end',function () {
+          clientSocket.end();
+        });//end end
+ 
+        clientSocket.on('error',function (err){
+            socket.write( "HTTP/" + request.httpVersion + " 500 Connection error\r\n\r\n" );
+            printLog(err);
+            socket.end();
+        });//end error
+        socket.on('error',function (err){
+            printLog(err);
+            clientSocket.end();
+        });//end error
+    }//end onWebServerConnect
     var webServer;
-    webServer = http.createServer(onWebServerCreate)
+    webServer = http.createServer(onWebServerCreate);
     webServer.listen(excuteArgvs.port);
+    webServer.addListener('connect',onWebServerConnect);
     
     util.log('==================================================================='.red.bold);
     util.log('==================================================================='.red.bold);
