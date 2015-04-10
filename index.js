@@ -73,7 +73,7 @@
         }
     })();//end formatHost
     function decodeResponseBody(headers,body){
-        var cs
+        var cs;
         cs = headers['content-type'].match(/.*charset=(.*)[;]?/i);
         cs = cs && cs[1];
         if(cs){
@@ -270,7 +270,7 @@
     webServer.listen(excuteArgvs.port);
     webServer.addListener('connect',onWebServerConnect);
     
-    util.log('==================================================================='.red.bold);
+    util.log('==========node logproxy [listen port] [only log host,..]==========='.red.bold);
     util.log('==================================================================='.red.bold);
     util.log('             PROXY IS READY ON ' +(getIPAddress()).red.bold+' PORT '+(excuteArgvs.port+'              ').red.bold);
     util.log('==================================================================='.red.bold);
