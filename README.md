@@ -13,16 +13,16 @@ npm install -g logproxy
 Commands
 =========
 ```shell
-node logproxy [listen port] [only log host,..]
+logproxy [listen port] [only log host,..]
 ```
 
 eg.
 =====
 1.start logproxy with default setting
 ```shell
-node logproxy
+logproxy
 ```
 2.listen on port 8088 and only log hosts -- 'c.163.com' and every host matchs '126.com'
 ```shell
-node logproxy 8088 c.163.com,*126.com
+logproxy 8088 c.163.com,*126.com
 ```

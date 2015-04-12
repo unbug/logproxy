@@ -271,7 +271,7 @@ webServer = http.createServer(onWebServerCreate);
 webServer.listen(excuteArgvs.port);
 webServer.addListener('connect',onWebServerConnect);
 
-util.log('==========node logproxy [listen port] [only log host,..]==========='.red.bold);
+util.log('==========logproxy [listen port] [only log host,..]==========='.red.bold);
 util.log('==================================================================='.red.bold);
 util.log('             PROXY IS READY ON ' +(getIPAddress()).red.bold+' PORT '+(excuteArgvs.port+'              ').red.bold);
 util.log('==================================================================='.red.bold);
