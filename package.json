@@ -1,6 +1,6 @@
 {
   "name": "logproxy",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "set up a proxy to log http archives",
   "main": "index.js",
   "dependencies": {
