@@ -1,6 +1,6 @@
 logproxy
 ========
-set up a proxy to log http archives
+Set up a proxy server to log http archives of your mobile devices.
 
 <img src="https://lh4.googleusercontent.com/-LLOq43DK_9g/UtrewcMwPDI/AAAAAAAAI2o/6k_98Lyk1BI/w954-h551-no/Snip20140119_71.png"/>
 
