@@ -30,3 +30,4 @@ logproxy 8088 c.163.com,*126.com
 Guide
 =========
 After run `logproxy`,you will see a log ` PROXY IS READY ON 192.168.1.102 PORT 1630`,set your device's http proxy to the IP address and port.
+
